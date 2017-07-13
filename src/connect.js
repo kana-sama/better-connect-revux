@@ -36,60 +36,44 @@ function shallowEqual(objA, objB) {
 const defaultMapStateToProps = () => null;
 const defaultMapDispatchToProps = () => null;
 
-export default function connect(
+export default (
   mapStateToProps = defaultMapStateToProps,
   mapDispatchToProps = defaultMapDispatchToProps
-) {
-  return component => {
-    return {
-      name: `connect-${component.name}`,
-      mixins: [component],
-      inject: ["$$store"],
+) => Component => ({
+  name: `connect-${Component.name}`,
+  mixins: [Component],
+  inject: ["$$store"],
 
-      data() {
-        const attrs = { ...this.$attrs };
+  data() {
+    const attrs = { ...this.$attrs };
 
-        Object.assign(attrs, mapStateToProps(this.$$store.getState(), attrs));
-        Object.assign(attrs, mapDispatchToProps(this.$$store.dispatch, attrs));
+    Object.assign(attrs, mapStateToProps(this.$$store.getState(), attrs));
+    Object.assign(attrs, mapDispatchToProps(this.$$store.dispatch, attrs));
 
-        return { ...attrs };
-      },
+    return attrs;
+  },
 
-      created() {
-        const select = state => mapStateToProps(state, this.$attrs);
+  created() {
+    const getProps = () =>
+      mapStateToProps(this.$$store.getState(), this.$attrs);
 
-        const observeStore = (store, select, onChange) => {
-          let currentState = select(store.getState());
+    const getHandlers = props =>
+      mapDispatchToProps(this.$$store.dispatch, { ...this.$attrs, ...props });
 
-          return store.subscribe(() => {
-            const nextState = select(store.getState());
+    let currentProps = getProps();
 
-            if (!shallowEqual(currentState, nextState)) {
-              const previousState = currentState;
-              currentState = nextState;
+    this._unsubscribe = this.$$store.subscribe(() => {
+      const newProps = getProps();
 
-              onChange(currentState, previousState);
-            }
-          });
-        };
+      if (!shallowEqual(currentProps, newProps)) {
+        Object.assign(this, newProps, getHandlers(newProps));
 
-        this._unsubscribe = observeStore(this.$$store, select, newState => {
-          const attrs = { ...this.$attrs, ...newState };
-          const newHandlers = mapDispatchToProps(this.$$store.dispatch, attrs);
-
-          Object.keys(newState).forEach(key => {
-            this.$set(this, key, newState[key]);
-          });
-
-          Object.keys(newHandlers).forEach(key => {
-            this.$set(this, key, newHandlers[key]);
-          });
-        });
-      },
-
-      beforeDestroy() {
-        this._unsubscribe();
+        currentProps = newProps;
       }
-    };
-  };
-}
+    });
+  },
+
+  beforeDestroy() {
+    this._unsubscribe();
+  }
+});
