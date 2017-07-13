@@ -1,0 +1,9 @@
+.DS_Store
+node_modules/
+dist/
+coverage/
+src/css
+src/**/*.map
+*.log
+.idea
+.awcache
